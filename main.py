@@ -18,38 +18,42 @@ class UserTracker:
         self.load_data()
 
     def load_data(self):
+        # Проверяем, существует ли файл
         if os.path.exists('tracked_users.json'):
             with open('tracked_users.json', 'r') as f:
-                self.tracked_users = json.load(f)
+                data = f.read().strip()  # Считываем данные и убираем лишние пробелы
+                if data:  # Если данные не пустые, парсим их
+                    try:
+                        self.tracked_users = json.loads(data)
+                    except json.JSONDecodeError:  # Обрабатываем поврежденный JSON
+                        print("Ошибка при разборе JSON. Создан новый файл.")
+                        self.tracked_users = {}  # Если данные повреждены, инициализируем пустой словарь
+                else:
+                    self.tracked_users = {}  # Если файл пустой
+        else:
+            self.tracked_users = {}  # Если файла нет, создаем пустой словарь
 
     def save_data(self):
+        # Сохраняем данные в файл
         with open('tracked_users.json', 'w') as f:
             json.dump(self.tracked_users, f)
 
-    async def track_user(self, user_id, event_time=None):
+    async def track_user(self, user_id):
         if user_id not in self.tracked_users:
             self.tracked_users[user_id] = {'last_seen': None, 'activity_log': []}
         
         current_time = int(datetime.now().timestamp())
-        
         if self.tracked_users[user_id]['last_seen'] is None:
             self.tracked_users[user_id]['last_seen'] = current_time
-            self.tracked_users[user_id]['activity_log'].append(f"{datetime.fromtimestamp(current_time).strftime('%H:%M:%S')} был в сети")
         
-        # Если прошло больше 10 секунд с последнего обновления
-        elif current_time - self.tracked_users[user_id]['last_seen'] >= 10:
-            last_seen_time = datetime.fromtimestamp(self.tracked_users[user_id]['last_seen']).strftime('%H:%M:%S')
-            current_time_str = datetime.fromtimestamp(current_time).strftime('%H:%M:%S')
-            self.tracked_users[user_id]['activity_log'].append(f"{last_seen_time} был в сети")
-            self.tracked_users[user_id]['activity_log'].append(f"{current_time_str} вышел из сети")
+        elif current_time - self.tracked_users[user_id]['last_seen'] >= 10:  # Каждые 10 секунд
+            self.tracked_users[user_id]['activity_log'].append(f"{datetime.fromtimestamp(self.tracked_users[user_id]['last_seen']).strftime('%H:%M:%S')} был в сети")
             self.tracked_users[user_id]['last_seen'] = current_time
-
-        # Ограничение количества записей в логе
-        if len(self.tracked_users[user_id]['activity_log']) > 50:
-            self.tracked_users[user_id]['activity_log'] = self.tracked_users[user_id]['activity_log'][:50]
-
+            self.tracked_users[user_id]['activity_log'].append(f"{datetime.fromtimestamp(current_time).strftime('%H:%M:%S')} вышел из сети")
+        
         self.save_data()
 
+# Создаем экземпляр отслеживателя
 tracker = UserTracker()
 
 @client.on(events.NewMessage(pattern='/attack @username'))
